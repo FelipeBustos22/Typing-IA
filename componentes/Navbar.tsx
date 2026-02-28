@@ -11,7 +11,7 @@ export default function Navbar() {
             typing
           </span>
           {/* El acento ámbar sobre "AI" diferencia la palabra clave del resto */}
-          <span className="text-sm font-medium text-acento tracking-tight">
+          <span className="text-md font-medium text-acento tracking-tight">
             AI
           </span>
           <span
@@ -19,20 +19,6 @@ export default function Navbar() {
             aria-hidden="true"   /* decorativo: los lectores de pantalla lo ignoran */
           >
             _
-          </span>
-        </div>
-
-        {/* ── Indicadores de estado (vacíos por ahora, se llenan en Fase 2) ─ */}
-        {/* En Fase 2 estos mostrarán WPM y precisión en tiempo real.
-            Por ahora están como placeholders visuales. */}
-        <div className="flex items-center gap-5 text-xs text-muted">
-          <span className="flex items-center gap-1.5">
-            <span className="text-opaco">wpm</span>
-            <span className="text-texto">—</span>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="text-opaco">acc</span>
-            <span className="text-texto">—</span>
           </span>
         </div>
 
