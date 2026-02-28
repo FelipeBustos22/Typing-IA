@@ -7,7 +7,7 @@ export default function Navbar() {
         {/* El cursor parpadeante después del nombre es un guiño al contexto
             de la app: estás a punto de escribir. */}
         <div className="flex items-center gap-0 select-none">
-          <span className="text-lg font-medium text-brillante tracking-tight">
+          <span className="text-xl font-medium text-brillante tracking-tight">
             typing
           </span>
           {/* El acento ámbar sobre "AI" diferencia la palabra clave del resto */}

@@ -30,7 +30,7 @@ interface IRespuestaOllama {
 
 export async function generarTexto(tematica: string): Promise<string> {
   // Construimos el prompt aquí, no en el Route Handler.
-  const prompt = `Genera un párrafo corto (entre 50 y 80 palabras) sobre el tema: "${tematica}".
+  const prompt = `Genera un párrafo corto (entre 30 y 50 palabras) sobre el tema: "${tematica}".
 El texto debe ser fluido, en español, sin listas ni puntos. Solo prosa continua.
 No incluyas ninguna introducción ni explicación. Responde únicamente con el párrafo.`
 
