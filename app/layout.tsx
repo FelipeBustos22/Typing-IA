@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "typingAI — mecanografía con IA local",
+  title: "typingAI — mecanografía con IA",
   description:
     "Practica mecanografía con textos generados en tiempo real por un modelo de IA eligiendo la tematica que quieras!.",
 }

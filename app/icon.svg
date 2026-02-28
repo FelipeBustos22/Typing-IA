@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Fondo oscuro con esquinas ligeramente redondeadas -->
+  <rect width="32" height="32" rx="5" fill="#0a0a0a"/>
+
+  <!-- Borde sutil para que no desaparezca en fondos oscuros del navegador -->
+  <rect width="32" height="32" rx="5" fill="none" stroke="#1e1e1e" stroke-width="1"/>
+
+  <!-- Prompt de terminal: ">" en ámbar tenue + "_" en ámbar brillante -->
+  <!-- El ">" más apagado imita la separación visual del logo (typing vs AI_) -->
+  <text
+    x="3"
+    y="23"
+    font-family="'Courier New', Courier, monospace"
+    font-size="17"
+    font-weight="700"
+    letter-spacing="-1"
+    fill="#e8b84b"
+    opacity="0.55"
+  >&gt;</text>
+  <text
+    x="15"
+    y="23"
+    font-family="'Courier New', Courier, monospace"
+    font-size="17"
+    font-weight="700"
+    fill="#e8b84b"
+  >_</text>
+</svg>
