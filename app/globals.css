@@ -1,26 +1,94 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
+/* ── Design tokens ──────────────────────────────────────────────────────────
+   Definimos los colores del proyecto como variables CSS y los registramos
+   en el sistema de Tailwind v4 via @theme. Esto permite usar clases como
+   bg-bg, text-accent, border-borde directamente en los componentes.
+   ─────────────────────────────────────────────────────────────────────── */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Fondos: de más oscuro a más claro */
+  --color-bg:           #0a0a0a;
+  --color-bg-elevated:  #111111;
+  --color-bg-subtle:    #181818;
+
+  /* Bordes */
+  --color-borde:        #1e1e1e;
+  --color-borde-bright: #2d2d2d;
+
+  /* Texto: de más apagado a más brillante */
+  --color-opaco:        #383838;
+  --color-muted:        #606060;
+  --color-texto:        #a8a8a8;  /* texto base — renombrado de 'base' para no colisionar con text-base de Tailwind */
+  --color-brillante:    #e8e8e8;
+
+  /* Acento principal: ámbar cálido, reminiscente de terminales CRT */
+  --color-acento:       #e8b84b;
+  --color-acento-dim:   #e8b84b26;
+
+  /* Estados del motor de tipado */
+  --color-error:        #d95f5f;
+  --color-correcto:     #7dc98a;
+
+  /* Tipografía: todo monoespaciado */
+  --font-mono:          var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ── Estilos base ───────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* Suavizado de fuente para que Geist Mono se vea nítido en pantallas HiDPI */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-bg);
+  color: var(--color-base);
+  /* Todo el proyecto usa monoespaciado. Es una elección deliberada:
+     la fuente del juego y la fuente de la UI son la misma. */
+  font-family: var(--font-mono), "Courier New", monospace;
+  min-height: 100dvh;
+}
+
+/* ── Scrollbar minimalista ──────────────────────────────────────────────── */
+::-webkit-scrollbar        { width: 3px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: var(--color-borde-bright); border-radius: 2px; }
+
+/* ── Selección de texto ─────────────────────────────────────────────────── */
+::selection {
+  background: var(--color-acento-dim);
+  color: var(--color-acento);
+}
+
+/* ── Animaciones ────────────────────────────────────────────────────────── */
+
+/* Cursor parpadeante: se usa en el logo del navbar y en el área de tipeo */
+@keyframes parpadeo {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+.cursor-parpadeo {
+  animation: parpadeo 1.1s step-end infinite;
+}
+
+/* Aparición suave: para el texto generado por Ollama cuando llega */
+@keyframes aparecerArriba {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+.animar-aparicion {
+  animation: aparecerArriba 0.35s ease forwards;
+}
+
+/* Pulso suave para el estado de carga mientras Ollama genera */
+@keyframes pulsoSutil {
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 0.8; }
+}
+.animar-pulso {
+  animation: pulsoSutil 1.5s ease-in-out infinite;
 }
