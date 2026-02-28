@@ -30,8 +30,11 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files
+# .env.example SÍ se sube (es la plantilla sin valores reales)
+# .env.local y cualquier otro .env con valores reales NO se sube
 .env*
+!.env.example
 
 # vercel
 .vercel

@@ -6,7 +6,7 @@ Este archivo es el documento de contexto persistente del proyecto. Cualquier age
 
 ## 1. Visión del Proyecto
 
-Aplicación web de mecanografía al estilo **Monkeytype**, donde los textos para practicar no son estáticos sino generados dinámicamente por un **modelo de IA local** (Ollama corriendo en `localhost:11434`).
+Aplicación web de mecanografía al estilo **Monkeytype**, donde los textos para practicar no son estáticos sino generados dinámicamente por un **modelo de IA** (local en desarrollo, en la nube en producción).
 
 El flujo principal es:
 1. El usuario elige una **temática** (ej: programación, historia, ciencia).
@@ -14,7 +14,14 @@ El flujo principal es:
 3. El texto generado aparece en pantalla y el usuario lo mecanografía.
 4. La aplicación mide velocidad (WPM) y precisión en tiempo real.
 
-El objetivo es combinar una herramienta de práctica de mecanografía con la variabilidad y personalización que ofrece la IA generativa local.
+### Proveedores de IA (dual provider)
+
+El proyecto detecta automáticamente qué proveedor usar según el entorno:
+
+- **Desarrollo local** — Si `GROQ_API_KEY` no está definida: usa **Ollama** (`localhost:11434`). Sin internet, sin cuotas, sin coste.
+- **Producción** — Si `GROQ_API_KEY` está definida: usa **Groq** (API en la nube). El rate limiter (5 req/min, 30 req/día por IP) se activa automáticamente solo en producción (`NODE_ENV === "production"`).
+
+La lógica de decisión vive únicamente en `lib/ollama.ts`. El Route Handler y los componentes no saben qué proveedor se usó.
 
 ---
 
@@ -26,9 +33,10 @@ El objetivo es combinar una herramienta de práctica de mecanografía con la var
 | **React** | 19 | Librería de UI. Se usa dentro de Next.js, no de forma independiente. |
 | **TypeScript** | Estricto | Tipado estático en todo el proyecto. |
 | **Tailwind CSS** | v4 | Estilos utilitarios. Diseño oscuro, minimalista, alto contraste (inspirado en Monkeytype). |
-| **Ollama** | API REST local en `localhost:11434` | Proveedor de IA. Ejecuta modelos como `llama3` localmente, sin dependencia de servicios en la nube. |
+| **Ollama** | API REST local en `localhost:11434` | Proveedor de IA para desarrollo local. Sin internet ni cuotas. |
+| **Groq** | API REST en la nube | Proveedor de IA para producción. Se activa cuando `GROQ_API_KEY` está definida. |
 
-**Nota sobre Ollama:** No es una librería npm. Es un servidor local independiente con el que nos comunicamos mediante `fetch` estándar desde los Route Handlers de Next.js.
+**Nota sobre los proveedores de IA:** Ninguno es una librería npm. Son servidores externos con los que nos comunicamos mediante `fetch` estándar desde los Route Handlers. Ollama corre en el `localhost` del servidor; Groq corre en la nube de Groq.
 
 ---
 
@@ -50,15 +58,19 @@ typing-fb-ia/
 │   │                             # Los componentes de layout estructural pueden ser Server Components.
 │
 ├── lib/
-│   └── ollama.ts                 # Funciones utilitarias para construir y ejecutar peticiones a la API de Ollama.
-│                                 # Solo se importa desde Route Handlers (server-side), nunca desde componentes cliente.
+│   ├── ollama.ts                 # Lógica de IA: detecta el proveedor (Ollama vs Groq) y ejecuta la petición.
+│   │                             # Solo se importa desde Route Handlers (server-side), nunca desde componentes cliente.
+│   ├── rate-limit.ts             # Rate limiter en memoria. Dos ventanas: 5 req/min y 30 req/día por IP.
+│   │                             # Solo activo en producción (NODE_ENV === "production").
+│   └── calculos.ts               # Funciones puras: calcularWpm y calcularPrecision.
 │
 ├── types/
-│   └── index.ts                  # Interfaces y tipos TypeScript compartidos en todo el proyecto.
+│   └── index.ts                  # Interfaces TypeScript compartidas en todo el proyecto.
 │                                 # Convención: prefijo `I` para interfaces (ej: ITypingState, IGeneratedText).
 │
 ├── public/                       # Archivos estáticos servidos directamente (imágenes, iconos, fuentes locales).
 │
+├── .env.example                  # Plantilla de variables de entorno. SÍ se comitea. Sin valores reales.
 ├── next.config.ts                # Configuración de Next.js.
 ├── tsconfig.json                 # Configuración de TypeScript.
 ├── postcss.config.mjs            # Configuración de PostCSS (requerido por Tailwind).
@@ -72,11 +84,11 @@ typing-fb-ia/
 
 Estas decisiones están tomadas y no deben cuestionarse ni revertirse sin una razón de peso explícita.
 
-### 4.1 Ollama solo desde el servidor
+### 4.1 La IA solo se llama desde el servidor
 
-**Regla:** Todo acceso a la API de Ollama ocurre **exclusivamente desde Route Handlers** ubicados en `app/api/`. Jamás desde un componente cliente.
+**Regla:** Todo acceso a Ollama o Groq ocurre **exclusivamente desde Route Handlers** ubicados en `app/api/`. Jamás desde un componente cliente.
 
-**Por qué:** Los Route Handlers se ejecutan en el servidor de Node.js. Desde el servidor podemos llamar a `localhost:11434` sin problema. Si intentáramos hacerlo desde el navegador del usuario, fallaría porque el `localhost` del navegador no es el mismo `localhost` donde corre Ollama.
+**Por qué:** Los Route Handlers se ejecutan en el servidor de Node.js. Desde el servidor podemos llamar a `localhost:11434` (Ollama) sin problema, y podemos leer variables de entorno como `GROQ_API_KEY` de forma segura. Si intentáramos hacerlo desde el navegador del usuario, fallaría por dos razones: el `localhost` del navegador no es el mismo que el del servidor, y las variables de entorno del servidor no están disponibles en el cliente (lo que expondría la API key).
 
 ### 4.2 Separación Server Components / Client Components
 
@@ -157,35 +169,31 @@ export default function MotorTipeo({ textoObjetivo }: IMotorTipeoProps) {
 
 El proyecto se construye en fases secuenciales. **No se debe anticipar lógica de fases posteriores** mientras la fase actual no esté completa y validada.
 
-### Fase 1 — Infraestructura (actual)
+### Fase 1 — Infraestructura ✓ Completada
 
-**Objetivo:** Conectar los puntos fundamentales del sistema antes de construir cualquier experiencia de usuario.
+- [x] Route Handler funcional en `app/api/texto-generado/route.ts`.
+- [x] Función auxiliar en `lib/ollama.ts` con soporte dual Ollama/Groq.
+- [x] Rate limiter en `lib/rate-limit.ts` (solo producción).
+- [x] Layout base con Tailwind (fondo oscuro, tipografía monoespaciada).
+- [x] Esqueleto de UI: selector de temática + área de texto generado.
+- [x] Tipos base definidos en `types/index.ts`.
 
-- [ ] Route Handler funcional en `app/api/texto-generado/route.ts` que recibe una temática y devuelve texto de Ollama.
-- [ ] Función auxiliar en `lib/ollama.ts` para construir la petición a Ollama.
-- [ ] Layout base con Tailwind (fondo oscuro, tipografía monoespaciada).
-- [ ] Esqueleto de UI: selector de temática + área donde aparecerá el texto generado.
-- [ ] Tipos base definidos en `types/index.ts`.
+### Fase 2 — Motor de Tipado ✓ Completada
 
-### Fase 2 — Motor de Tipado
+- [x] Captura de eventos de teclado (`onKeyDown`) en `MotorTipeo.tsx`.
+- [x] Validación carácter a carácter contra el texto objetivo.
+- [x] Feedback visual en tiempo real: correcto (blanco), error (rojo), cursor (ámbar).
+- [x] Cálculo de WPM en tiempo real (`lib/calculos.ts`).
+- [x] Cálculo de precisión.
+- [x] Detección de fin de texto con transición de estado `jugando → terminado`.
 
-**Objetivo:** Implementar la mecánica central de la práctica de mecanografía.
+### Fase 3 — Refinamiento (en curso)
 
-- [ ] Captura de eventos de teclado (`onKeyDown`) en el componente del motor.
-- [ ] Validación carácter a carácter contra el texto objetivo.
-- [ ] Feedback visual en tiempo real: texto correcto, incorrecto, pendiente.
-- [ ] Cálculo de WPM (palabras por minuto) en tiempo real.
-- [ ] Cálculo de precisión (porcentaje de caracteres correctos).
-- [ ] Detección de fin de texto.
-
-### Fase 3 — Refinamiento
-
-**Objetivo:** Pulir la experiencia de usuario y añadir estadísticas finales.
-
-- [ ] Pantalla de resultados al terminar (WPM final, precisión, tiempo).
-- [ ] Animaciones y transiciones de UI.
-- [ ] Manejo de errores: Ollama no disponible, timeout, respuesta vacía.
-- [ ] Opción de reintentar o cambiar temática sin recargar la página.
+- [x] Pantalla de resultados finales (WPM, precisión, tiempo).
+- [x] Animaciones de entrada a la página (staggered reveal, CSS puro).
+- [x] Manejo de errores: Ollama/Groq no disponible.
+- [x] Opción de reintentar con nuevo texto de la misma temática.
+- [x] Pulido visual: textura de grano, sombras, responsivo.
 - [ ] Accesibilidad básica (ARIA, navegación por teclado).
 
 ---
