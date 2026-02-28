@@ -1,7 +1,7 @@
 export default function Navbar() {
   return (
-    <header className="w-full border-b border-borde">
-      <nav className="max-w-4xl mx-auto px-6 h-14 flex items-center justify-between">
+    <header className="w-full border-b border-borde animar-entrada-arriba">
+      <nav className="max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
 
         {/* ── Logo ────────────────────────────────────────────────────── */}
         {/* El cursor parpadeante después del nombre es un guiño al contexto

@@ -104,10 +104,10 @@ export default function SelectorTematica({ tematicas }: ISelectorTematicaProps) 
 
       {/* ── Botones de temática ─────────────────────────────────────────── */}
       <section className="flex flex-col items-center gap-4 w-full">
-        <p className="text-xs text-muted tracking-widest uppercase">
+        <p className="text-xs text-muted tracking-widest uppercase animar-entrada retraso-1">
           elige una temática
         </p>
-        <div className="flex flex-wrap justify-center gap-2">
+        <div className="flex flex-wrap justify-center gap-2 animar-entrada retraso-2">
           {tematicas.map((tematica) => {
             // Calculamos las clases CSS según el estado del botón.
             // Un botón puede estar: inactivo, activo (seleccionado) o deshabilitado (cargando).
@@ -148,8 +148,8 @@ export default function SelectorTematica({ tematicas }: ISelectorTematicaProps) 
             className="
               relative w-full rounded-sm
               border border-borde bg-bg-elevated
-              px-8 py-8 min-h-36
-              flex items-center
+              px-5 py-6 sm:px-8 sm:py-8 min-h-36
+              flex items-center sombra-card
             "
           >
             {/* Línea decorativa izquierda: cambia de color según el estado */}
@@ -184,7 +184,7 @@ export default function SelectorTematica({ tematicas }: ISelectorTematicaProps) 
 
             {/* ── Estado: inicial (sin selección) ────────────────────── */}
             {!cargando && !error && (
-              <p className="text-lg leading-relaxed text-opaco select-none">
+              <p className="text-base sm:text-lg leading-relaxed text-opaco select-none animar-entrada retraso-3">
                 selecciona una temática para generar
                 <span className="text-muted"> el texto</span>
                 <span className="text-acento cursor-parpadeo"> _</span>

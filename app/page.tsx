@@ -18,7 +18,7 @@ const TEMATICAS = [
 
 export default function Home() {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-6 py-16 max-w-4xl mx-auto w-full">
+    <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-10 sm:py-16 max-w-4xl mx-auto w-full">
       {/*
         SelectorTematica es un Client Component: maneja clicks, fetch a Ollama,
         estado de carga y el texto generado. Le pasamos las temáticas como prop.

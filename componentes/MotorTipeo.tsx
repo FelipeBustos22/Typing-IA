@@ -253,7 +253,8 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
         className="
           relative w-full rounded-sm
           border border-borde bg-bg-elevated
-          px-8 py-8 min-h-36
+          px-5 py-6 sm:px-8 sm:py-8 min-h-36
+          sombra-card
         "
       >
         {/* Línea decorativa izquierda — brilla suavemente con el acento ámbar */}
@@ -321,7 +322,7 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
           - "jugando": (reservado para métricas en tarea 2.6)
           - "terminado": muestra el resumen usando las funciones de cálculo */}
       {faseJuego === "esperando" && (
-        <p className="text-sm text-muted animate-pulse text-center">
+        <p className="mt-3 text-sm text-muted animate-pulse text-center">
           empieza a escribir para iniciar el cronómetro
         </p>
       )}
@@ -330,25 +331,25 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
           Leemos de resultadosFinales (useState), NO de los refs.
           React puede renderizar esto de forma segura y predecible. */}
       {faseJuego === "terminado" && resultadosFinales && (
-        <div className="mt-4 w-full rounded-sm border border-borde bg-bg-elevated px-6 py-5 animar-aparicion">
+        <div className="mt-4 w-full rounded-sm border border-borde bg-bg-elevated px-4 sm:px-6 py-5 animar-aparicion sombra-card">
           <p className="text-xs text-muted tracking-widest uppercase mb-3">resultados</p>
-          <div className="flex items-center justify-center gap-8">
+          <div className="flex items-center justify-center gap-4 sm:gap-8">
             <div className="flex flex-col items-center gap-1">
-              <span className="text-2xl font-semibold text-acento">
+              <span className="text-xl sm:text-2xl font-semibold text-acento">
                 {resultadosFinales.wpm}
               </span>
               <span className="text-xs text-opaco">wpm</span>
             </div>
             <div className="w-px h-8 bg-borde" />
             <div className="flex flex-col items-center gap-1">
-              <span className="text-2xl font-semibold text-brillante">
+              <span className="text-xl sm:text-2xl font-semibold text-brillante">
                 {resultadosFinales.precision}%
               </span>
               <span className="text-xs text-opaco">precisión</span>
             </div>
             <div className="w-px h-8 bg-borde" />
             <div className="flex flex-col items-center gap-1">
-              <span className="text-2xl font-semibold text-texto">
+              <span className="text-xl sm:text-2xl font-semibold text-texto">
                 {resultadosFinales.tiempo}s
               </span>
               <span className="text-xs text-opaco">tiempo</span>

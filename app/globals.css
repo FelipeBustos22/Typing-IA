@@ -92,3 +92,92 @@ body {
 .animar-pulso {
   animation: pulsoSutil 1.5s ease-in-out infinite;
 }
+
+/* ── Textura de grano sutil ───────────────────────────────────────────────
+   Superpone ruido fractal casi invisible sobre toda la interfaz.
+   Rompe la "planitud digital" del fondo oscuro puro y agrega una
+   profundidad orgánica, táctil — como la textura de papel o de una
+   terminal CRT real. A 1.5% de opacidad es imperceptible conscientemente,
+   pero el cerebro lo percibe como "más real".
+   pointer-events: none lo saca del flujo de interacción. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* ── Animaciones de entrada a la página ───────────────────────────────────
+   Se ejecutan UNA sola vez al cargar o recargar la página.
+   Cada elemento empieza invisible (opacity: 0) y desplazado, y se desliza
+   suavemente a su posición final.
+
+   fill-mode "both":
+   - "backwards" → aplica el estado "from" ANTES de que empiece la animación
+     (por eso el elemento arranca invisible, sin flash de contenido).
+   - "forwards" → mantiene el estado "to" DESPUÉS de terminar
+     (el elemento queda visible permanentemente).
+
+   La curva cubic-bezier(0.22, 1, 0.36, 1) se llama "ease-out-expo":
+   arranca rápido y desacelera progresivamente. Imita el movimiento
+   natural de un objeto que frena por fricción. */
+
+@keyframes entradaDesdeAbajo {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes entradaDesdeArriba {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0);     }
+}
+
+/* Clase para elementos que entran desde abajo (contenido principal) */
+.animar-entrada {
+  animation: entradaDesdeAbajo 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Clase para elementos que entran desde arriba (navbar) */
+.animar-entrada-arriba {
+  animation: entradaDesdeArriba 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── Retrasos para efecto cascada (stagger) ───────────────────────────────
+   Se combinan con las clases anteriores: class="animar-entrada retraso-2"
+   Cada nivel añade un pequeño retardo para que los elementos aparezcan
+   secuencialmente, creando la ilusión de que la interfaz "se construye". */
+.retraso-1 { animation-delay: 80ms;  }
+.retraso-2 { animation-delay: 180ms; }
+.retraso-3 { animation-delay: 300ms; }
+.retraso-4 { animation-delay: 440ms; }
+
+/* ── Accesibilidad: respetar preferencias de movimiento reducido ──────────
+   Algunos usuarios configuran su sistema operativo para reducir animaciones
+   (por motivos de accesibilidad, mareo por movimiento, etc.).
+   Esta media query detecta esa preferencia y desactiva las animaciones
+   de entrada, mostrando el contenido directamente sin transición. */
+@media (prefers-reduced-motion: reduce) {
+  .animar-entrada,
+  .animar-entrada-arriba,
+  .animar-aparicion {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── Sombra para cards elevadas ───────────────────────────────────────────
+   Añade profundidad sutil a los paneles con fondo bg-elevated.
+   En fondos oscuros, las sombras necesitan ser más intensas para
+   ser perceptibles. La primera capa (1px) define el borde visual,
+   la segunda (16px) crea la difusión de profundidad. */
+.sombra-card {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.25),
+    0 4px 16px -4px rgba(0, 0, 0, 0.5);
+}
