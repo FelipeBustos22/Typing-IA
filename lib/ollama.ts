@@ -1,8 +1,12 @@
-// A partir de Ollama 0.5+, /api/generate fue reemplazado por /api/chat.
-// /api/chat usa un formato de "mensajes" (igual que la API de OpenAI/ChatGPT)
-// en lugar de un prompt de texto plano. La respuesta también tiene distinta forma.
-const OLLAMA_URL = "http://127.0.0.1:11434/api/chat"
-const MODELO = "phi4-mini:3.8b"
+// ── Configuración vía variables de entorno ──────────────────────────────────
+// La URL y el modelo NO están hardcodeados. Se leen de variables de entorno
+// definidas en .env
+//
+// El operador ??
+// si la variable NO existe en el entorno, se usa lo de la derecha.
+// Así el proyecto funciona "out of the box" incluso sin .env
+const OLLAMA_URL = process.env.OLLAMA_URL ?? "http://127.0.0.1:11434/api/chat"
+const MODELO = process.env.OLLAMA_MODELO ?? "phi4-mini:3.8b"
 
 // ─── Tipos internos ────────────────────────────────────────────────────────────
 // Esta interfaz describe la forma del JSON que devuelve Ollama.

@@ -100,7 +100,7 @@ Estas decisiones están tomadas y no deben cuestionarse ni revertirse sin una ra
 
 ---
 
-## 5. Perfil del Desarrollador
+## 5. Perfil del Desarrollador (si soy yo jeje)
 
 Este perfil determina **cómo debe comunicarse este agente**. Es la sección más importante para calibrar las respuestas.
 
