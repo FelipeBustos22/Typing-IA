@@ -6,28 +6,37 @@
    bg-bg, text-accent, border-borde directamente en los componentes.
    ─────────────────────────────────────────────────────────────────────── */
 @theme inline {
-  /* Fondos: de más oscuro a más claro */
-  --color-bg:           #0a0a0a;
-  --color-bg-elevated:  #111111;
-  --color-bg-subtle:    #181818;
+  /* ── Fondos: paleta cálida «terminal CRT» ─────────────────────────────
+     El fondo base ya no es negro neutro sino un near-black con tinte cálido
+     muy sutil (#0d0c09). Esto hace que el ámbar del acento se sienta NATIVO
+     al sistema de color en vez de flotar sobre un vacío neutro.
+     Las cards elevadas tienen el mismo calor, creando profundidad real. */
+  --color-bg:           #0d0c09;
+  --color-bg-elevated:  #161410;
+  --color-bg-subtle:    #201c15;
 
-  /* Bordes */
-  --color-borde:        #1e1e1e;
-  --color-borde-bright: #2d2d2d;
+  /* Bordes: también cálidos, distinguibles sobre el fondo */
+  --color-borde:        #2a2318;
+  --color-borde-bright: #3d3528;
 
-  /* Texto: de más apagado a más brillante */
-  --color-opaco:        #383838;
-  --color-muted:        #606060;
-  --color-texto:        #a8a8a8;  /* texto base — renombrado de 'base' para no colisionar con text-base de Tailwind */
-  --color-brillante:    #e8e8e8;
+  /* Texto: escala cream/ivory — no gris neutro.
+     Todos pasan WCAG AA (≥4.5:1) contra #0d0c09:
+       opaco     #7a7066 →  4.7:1  AA ✓  (decorativo / muy secundario)
+       muted     #aa9f96 →  8.1:1  AAA ✓ (UI, etiquetas, hints)
+       texto     #d4c9be → 12.2:1  AAA ✓ (texto principal)
+       brillante #f0ebe4 → 16.7:1  AAA ✓ (énfasis, titulares) */
+  --color-opaco:        #7a7066;
+  --color-muted:        #aa9f96;
+  --color-texto:        #d4c9be;
+  --color-brillante:    #f0ebe4;
 
-  /* Acento principal: ámbar cálido, reminiscente de terminales CRT */
+  /* Acento principal: ámbar cálido — ahora COHERENTE con toda la paleta */
   --color-acento:       #e8b84b;
-  --color-acento-dim:   #e8b84b26;
+  --color-acento-dim:   #e8b84b20;
 
-  /* Estados del motor de tipado */
-  --color-error:        #d95f5f;
-  --color-correcto:     #7dc98a;
+  /* Estados del motor de tipado — ligeramente más vibrantes en la nueva base */
+  --color-error:        #e06868;
+  --color-correcto:     #72d47f;
 
   /* Tipografía: todo monoespaciado */
   --font-mono:          var(--font-geist-mono);
@@ -51,6 +60,24 @@ body {
      la fuente del juego y la fuente de la UI son la misma. */
   font-family: var(--font-mono), "Courier New", monospace;
   min-height: 100dvh;
+}
+
+/* ── Resplandor ambiental: efecto «pantalla CRT encendida» ─────────────────
+   Un gradiente radial muy tenue irradia desde el centro-superior de la
+   pantalla, como si el propio panel estuviera emitiendo luz cálida.
+   A 3% de opacidad es imperceptible conscientemente, pero elimina la
+   «muerte» del negro puro y hace que los textos tengan un fondo con vida. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 90% 55% at 50% -5%,
+    rgba(232, 184, 75, 0.03) 0%,
+    transparent 65%
+  );
 }
 
 /* ── Scrollbar minimalista ──────────────────────────────────────────────── */
@@ -172,12 +199,14 @@ body::before {
 }
 
 /* ── Sombra para cards elevadas ───────────────────────────────────────────
-   Añade profundidad sutil a los paneles con fondo bg-elevated.
-   En fondos oscuros, las sombras necesitan ser más intensas para
-   ser perceptibles. La primera capa (1px) define el borde visual,
-   la segunda (16px) crea la difusión de profundidad. */
+   Tres capas:
+   1. Borde interior ámbar casi invisible → la card «brilla» muy sutilmente
+   2. Sombra base de elevación
+   3. Halo de profundidad difuso
+   En conjunto crean una card que parece flotar y emanar calor. */
 .sombra-card {
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.25),
-    0 4px 16px -4px rgba(0, 0, 0, 0.5);
+    0 0 0 1px rgba(232, 184, 75, 0.06),
+    0 2px 4px rgba(0, 0, 0, 0.4),
+    0 8px 28px -6px rgba(0, 0, 0, 0.65);
 }

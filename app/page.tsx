@@ -62,7 +62,7 @@ export default function Home() {
             las cabeceras de documentos técnicos. Es información útil para
             quien llega por primera vez, pero tan discreta que desaparece
             perceptualmente cuando estás enfocado en escribir. */}
-        <p className="text-[11px] text-acento/50 mt-2.5 tracking-widest uppercase max-w-xs mx-auto leading-relaxed">
+        <p className="text-[11px] text-acento/70 mt-2.5 tracking-widest uppercase max-w-xs mx-auto leading-relaxed">
           textos generados en tiempo real por inteligencia artificial
         </p>
         {/* Línea decorativa: cierra el bloque hero y crea una frontera

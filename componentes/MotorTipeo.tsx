@@ -288,7 +288,7 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
                   // Color según el estado del carácter
                   estado === "correcto" && "text-brillante",
                   estado === "error"    && "text-error bg-error/10 rounded-xs",
-                  estado === "pendiente" && !esCursor && "text-muted/40",
+                  estado === "pendiente" && !esCursor && "text-opaco",
                   // Cursor: texto brillante, subrayado ámbar parpadeante
                   esCursor && "text-brillante underline decoration-acento decoration-2 underline-offset-4 cursor-parpadeo",
                 ].filter(Boolean).join(" ")}
