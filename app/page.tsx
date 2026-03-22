@@ -55,7 +55,7 @@ export default function Home() {
               "fusión" o "cruce" — encaja con la estética code/matemática
               del proyecto. Más interesante que un guion o una barra. */}
           <span className="text-opaco/50 mx-2 font-light">×</span>
-          <span className="text-acento font-medium">IA</span>
+          <span className="text-acento font-medium">AI</span>
         </h1>
         {/* Subtítulo: uppercase + tracking-widest + tamaño diminuto (11px)
             imita las etiquetas de clasificación de terminales militares o
