@@ -133,27 +133,21 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
   // no necesita provocar un re-render cada vez que el usuario se equivoca.
   const contadorErrores = useRef<number>(0)
 
-  const handleKeyDown = useCallback((evento: KeyboardEvent) => {
+  // ── Ref para el input oculto que captura la entrada del teclado ────────────
+  // Usamos un <input> oculto en lugar de window.addEventListener("keydown")
+  // porque el evento "input" siempre entrega el carácter compuesto final
+  // (ej: dead key + a = "á"), mientras que "keydown" en Linux puede entregar
+  // solo el carácter base sin el acento.
+  const inputRef = useRef<HTMLInputElement>(null)
+  const composingRef = useRef(false)
+
+  // ── Lógica central: procesar un carácter ingresado ────────────────────────
+  const procesarCaracter = useCallback((caracter: string) => {
     const indice = indicadorActual.current
 
-    // Si el juego ya terminó, ignoramos cualquier tecla adicional.
-    // Esto es más explícito que la condición anterior (indice >= length),
-    // porque ahora consultamos el estado formal de la máquina.
     if (indice >= textoObjetivo.length) return
 
-    // evento.key devuelve el valor real de la tecla:
-    // - Letras y símbolos: "a", "b", "A", "1", ".", " " etc. (length === 1)
-    // - Teclas especiales: "Enter", "Backspace", "Shift", "ArrowLeft" etc. (length > 1)
-    // Solo nos interesan los caracteres de escritura (length === 1).
-    if (evento.key.length > 1) return
-
     // ── Transición: esperando → jugando ─────────────────────────────────────
-    // La primera tecla válida arranca el juego y el cronómetro.
-    //
-    // ¿Por qué leemos tiempoInicio.current en vez del estado faseJuego?
-    // Porque faseJuego es un useState (closure) y dentro de un event listener
-    // podría estar desactualizado. El ref siempre tiene el valor más reciente.
-    // Si tiempoInicio es null, significa que aún no hemos empezado.
     if (tiempoInicio.current === null) {
       tiempoInicio.current = Date.now()
       setFaseJuego("jugando")
@@ -161,70 +155,76 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
     }
 
     const esperado = textoObjetivo[indice]
-    const esCorrecta = evento.key === esperado
+    const esCorrecta = caracter === esperado
 
-    // Contamos el error si la tecla fue incorrecta
     if (!esCorrecta) {
       contadorErrores.current += 1
     }
 
-    // Actualizamos el estado del carácter en la posición actual.
-    // Usamos la forma funcional del setter: prev => nuevos.
-    // ¿Por qué esta forma y no setEstadosCaracteres(nuevoArray) directamente?
-    // Porque dentro de un event listener, el estado podría estar "desactualizado"
-    // (es un closure). La forma funcional siempre recibe el valor más reciente.
     setEstadosCaracteres(prev => {
-      const nuevos = [...prev]  // copia el array para no mutar el original
+      const nuevos = [...prev]
       nuevos[indice] = esCorrecta ? "correcto" : "error"
       return nuevos
     })
 
-    // Avanzamos el cursor.
     indicadorActual.current = indice + 1
 
     // ── Transición: jugando → terminado ──────────────────────────────────────
-    // Si acabamos de escribir el último carácter (indice + 1 === longitud del texto),
-    // el juego termina. Calculamos los resultados AQUÍ (dentro del handler,
-    // donde sí podemos leer refs) y los guardamos en estado para el render.
     if (indice + 1 >= textoObjetivo.length) {
       tiempoFin.current = Date.now()
       const segundos = (tiempoFin.current - tiempoInicio.current!) / 1000
 
-      // Calculamos y guardamos resultados en un solo setState.
-      // El operador "!" después de tiempoInicio.current le dice a TypeScript:
-      // "confío en que este valor no es null". Es seguro porque si llegamos
-      // aquí, el cronómetro ya arrancó obligatoriamente en la transición anterior.
       setResultadosFinales({
         wpm: calcularWpm(textoObjetivo.length, segundos),
         precision: calcularPrecision(textoObjetivo.length, contadorErrores.current),
-        tiempo: Math.round(segundos * 10) / 10  // redondeamos a 1 decimal
+        tiempo: Math.round(segundos * 10) / 10
       })
       setFaseJuego("terminado")
     }
+  }, [textoObjetivo])
 
-  }, [textoObjetivo])  // solo se recrea si cambia el texto objetivo
+  // ── Handler del evento "input" en el input oculto ─────────────────────────
+  // El evento "input" se dispara después de que el navegador compone el
+  // carácter final (dead keys, IME, etc.), garantizando que recibimos "á"
+  // en lugar de "Dead" + "a" por separado.
+  const handleInput = useCallback(() => {
+    if (composingRef.current) return
+    const input = inputRef.current
+    if (!input || !input.value) return
 
-  // ── useEffect: registrar y limpiar el listener de teclado ─────────────────
-  // useEffect ejecuta código como "reacción" a algo. El array vacío [] al final
-  // significaría "ejecuta esto solo al montar". Pero aquí dependemos de
-  // handleKeyDown, así que lo incluimos: "ejecuta esto cuando handleKeyDown cambie".
-  //
-  // Cuando el usuario cambia de temática, textoObjetivo cambia → handleKeyDown
-  // se recrea (useCallback) → este useEffect se vuelve a ejecutar:
-  // 1. Primero corre la función de limpieza (removeEventListener del listener viejo)
-  // 2. Luego registra el nuevo listener con el handleKeyDown actualizado
-  //
-  // Sin la función de limpieza (el return), el listener viejo seguiría activo
-  // en memoria aunque el componente ya no exista → bug difícil de detectar.
-  useEffect(() => {
-    window.addEventListener("keydown", handleKeyDown)
+    const valor = input.value
+    input.value = ""
 
-    // Función de limpieza: se ejecuta cuando el componente se desmonta
-    // o antes de volver a correr el efecto por un cambio en la dependencia.
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown)
+    for (const c of valor) {
+      procesarCaracter(c)
     }
-  }, [handleKeyDown])
+  }, [procesarCaracter])
+
+  // ── Composition events: para IME y dead keys en ciertos entornos ──────────
+  // En algunos sistemas Linux, las dead keys disparan compositionStart/End.
+  // Ignoramos los eventos "input" intermedios durante la composición y
+  // procesamos el resultado final en compositionEnd.
+  const handleCompositionStart = useCallback(() => {
+    composingRef.current = true
+  }, [])
+
+  const handleCompositionEnd = useCallback(() => {
+    composingRef.current = false
+    const input = inputRef.current
+    if (!input || !input.value) return
+
+    const valor = input.value
+    input.value = ""
+
+    for (const c of valor) {
+      procesarCaracter(c)
+    }
+  }, [procesarCaracter])
+
+  // ── Mantener el foco en el input oculto ───────────────────────────────────
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [textoObjetivo])
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -241,13 +241,21 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
 
   return (
     <div
-      // tabIndex={0} hace que el div sea "focusable" con teclado.
-      // Sin esto, en algunos navegadores el div no recibiría los eventos de teclado.
-      tabIndex={0}
-      // outline-none elimina el borde azul de foco del navegador.
-      // Nosotros manejamos el foco visualmente con el cursor parpadeante.
+      onClick={() => inputRef.current?.focus()}
       className="outline-none w-full"
     >
+      {/* Input oculto que captura la entrada del teclado.
+          Usamos un input real en lugar de keydown en window porque el evento
+          "input" siempre entrega el carácter compuesto final (dead keys, IME). */}
+      <input
+        ref={inputRef}
+        onInput={handleInput}
+        onCompositionStart={handleCompositionStart}
+        onCompositionEnd={handleCompositionEnd}
+        className="sr-only"
+        aria-label="Campo de escritura"
+        autoFocus
+      />
       {/* ── Área del texto ──────────────────────────────────────────────── */}
       <div
         className="
