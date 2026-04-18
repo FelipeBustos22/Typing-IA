@@ -21,13 +21,13 @@
 // NO. Todo corre en el servidor (Node.js). El cliente solo recibe
 // 200 OK o 429 Too Many Requests. No puede inspeccionar el Map interno.
 
-// ─── Configuración ────────────────────────────────────────────────────────────
+// ─── Configuración (importada desde lib/config.ts) ───────────────────────────
+import { RATE_LIMIT } from "@/lib/config"
 
-const MAX_POR_MINUTO = 5          // máx 5 peticiones por minuto por IP
-const VENTANA_MINUTO_MS = 60_000  // 60 segundos
-
-const MAX_POR_DIA = 30                   // máx 30 peticiones por día por IP
-const VENTANA_DIA_MS = 24 * 60 * 60_000  // 24 horas en milisegundos
+const MAX_POR_MINUTO = RATE_LIMIT.maxPorMinuto
+const VENTANA_MINUTO_MS = RATE_LIMIT.ventanaMinutoMs
+const MAX_POR_DIA = RATE_LIMIT.maxPorDia
+const VENTANA_DIA_MS = RATE_LIMIT.ventanaDiaMs
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -74,7 +74,8 @@ export function verificarRateLimit(ip: string): IResultadoRateLimit {
 
   // ── Verificar ventana de minuto ────────────────────────────────────────────
   if (peticionesEnMinuto.length >= MAX_POR_MINUTO) {
-    const masAntiguaEnMinuto = peticionesEnMinuto[0]
+    // El guard length >= N garantiza que [0] existe — safe assertion.
+    const masAntiguaEnMinuto = peticionesEnMinuto[0]!
     return {
       permitido: false,
       restantes: 0,
@@ -85,7 +86,7 @@ export function verificarRateLimit(ip: string): IResultadoRateLimit {
 
   // ── Verificar ventana diaria ───────────────────────────────────────────────
   if (peticionesEnDia.length >= MAX_POR_DIA) {
-    const masAntiguaEnDia = peticionesEnDia[0]
+    const masAntiguaEnDia = peticionesEnDia[0]!
     return {
       permitido: false,
       restantes: 0,
@@ -105,7 +106,7 @@ export function verificarRateLimit(ip: string): IResultadoRateLimit {
   return {
     permitido: true,
     restantes,
-    resetEnMs: registro.peticiones[0] + VENTANA_MINUTO_MS - ahora,
+    resetEnMs: registro.peticiones[0]! + VENTANA_MINUTO_MS - ahora,
   }
 }
 
@@ -122,5 +123,5 @@ if (typeof globalThis !== "undefined") {
         registros.delete(ip)
       }
     }
-  }, 30 * 60 * 1000) // cada 30 minutos
+  }, RATE_LIMIT.limpiezaIntervaloMs)
 }
