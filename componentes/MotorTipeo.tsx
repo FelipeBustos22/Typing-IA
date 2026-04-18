@@ -40,6 +40,37 @@ interface IMotorTipeoProps {
   onReintentar?: () => void   // se llama cuando el usuario pulsa "nuevo texto"
 }
 
+// ─── Contador animado ─────────────────────────────────────────────────────────
+// Interpola un número desde 0 hasta el valor objetivo en ~800ms usando
+// requestAnimationFrame. El resultado es un conteo suave tipo "odómetro".
+// decimales controla cuántos decimales mostrar (0 para enteros, 1 para %).
+
+function ContadorAnimado({ valor, decimales = 0 }: { valor: number; decimales?: number }) {
+  const [mostrado, setMostrado] = useState(0)
+
+  useEffect(() => {
+    const duracion = 800
+    const inicio = performance.now()
+
+    let frame: number
+    const animar = (ahora: number) => {
+      const progreso = Math.min((ahora - inicio) / duracion, 1)
+      // ease-out cúbico: desacelera naturalmente al llegar al valor final
+      const curva = 1 - Math.pow(1 - progreso, 3)
+      setMostrado(curva * valor)
+
+      if (progreso < 1) {
+        frame = requestAnimationFrame(animar)
+      }
+    }
+
+    frame = requestAnimationFrame(animar)
+    return () => cancelAnimationFrame(frame)
+  }, [valor])
+
+  return <>{decimales > 0 ? mostrado.toFixed(decimales) : Math.round(mostrado)}</>
+}
+
 // ─── Componente ───────────────────────────────────────────────────────────────
 
 export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: IMotorTipeoProps) {
@@ -80,6 +111,12 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
   // y no puede garantizar que el componente se redibuje correctamente.
   // La solución es calcular los valores en el handler y guardarlos en estado.
   const [resultadosFinales, setResultadosFinales] = useState<IResultadosFinales | null>(null)
+
+  // ── useState: métricas en vivo durante el tipeo ───────────────────────────
+  // Se actualizan cada segundo mientras el usuario escribe (fase "jugando").
+  // Muestran WPM y precisión en tiempo real para que el usuario tenga feedback
+  // inmediato de su rendimiento sin esperar a terminar el texto.
+  const [metricasEnVivo, setMetricasEnVivo] = useState<{ wpm: number; precision: number } | null>(null)
 
   // ── useRef: posición actual del cursor ────────────────────────────────────
   // Guardamos el índice del carácter que el usuario debe escribir a continuación.
@@ -220,6 +257,49 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
       procesarCaracter(c)
     }
   }, [procesarCaracter])
+
+  // ── Métricas en vivo: actualizar WPM y precisión cada segundo ───────────
+  // Solo corre durante la fase "jugando". El intervalo lee de los refs
+  // (tiempoInicio, indicadorActual, contadorErrores) que siempre están frescos.
+  useEffect(() => {
+    if (faseJuego !== "jugando") {
+      setMetricasEnVivo(null)
+      return
+    }
+
+    const intervalo = setInterval(() => {
+      if (!tiempoInicio.current) return
+      const segundos = (Date.now() - tiempoInicio.current) / 1000
+      if (segundos <= 0) return
+
+      const caracteresEscritos = indicadorActual.current
+      setMetricasEnVivo({
+        wpm: calcularWpm(caracteresEscritos, segundos),
+        precision: calcularPrecision(caracteresEscritos, contadorErrores.current),
+      })
+    }, 500)
+
+    return () => clearInterval(intervalo)
+  }, [faseJuego])
+
+  // ── Tab para reiniciar: atajo de teclado estándar ─────────────────────────
+  // En todas las apps de mecanografía (Monkeytype, TypeRacer), Tab reinicia
+  // la prueba. Escuchamos keydown a nivel de window porque durante "terminado"
+  // el input puede no tener foco.
+  const onReintentarRef = useRef(onReintentar)
+  useEffect(() => { onReintentarRef.current = onReintentar }, [onReintentar])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Tab" && faseJuego === "terminado" && onReintentarRef.current) {
+        e.preventDefault()
+        onReintentarRef.current()
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [faseJuego])
 
   // ── Detectar si el dispositivo es táctil ────────────────────────────────
   // Usamos un estado para que el render pueda mostrar/ocultar el hint táctil.
@@ -380,6 +460,23 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
         {/* Línea decorativa izquierda — brilla suavemente con el acento ámbar */}
         <div className="absolute left-0 top-6 bottom-6 w-px bg-acento opacity-30 rounded-full" />
 
+        {/* ── Barra de progreso ─────────────────────────────────────────
+            Una línea ámbar muy sutil en la base de la card que crece
+            proporcionalmente al avance del usuario. Usa el mismo color
+            del acento con baja opacidad para no competir con el texto.
+            La transición suaviza el crecimiento carácter a carácter. */}
+        <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-borde/30 overflow-hidden rounded-b-sm">
+          <div
+            className="h-full bg-acento/50 transition-all duration-150 ease-out"
+            style={{
+              width: `${posicionCursor === -1
+                ? 100
+                : (posicionCursor / textoObjetivo.length) * 100
+              }%`,
+            }}
+          />
+        </div>
+
         {/* ── Caracteres del texto ─────────────────────────────────────── */}
         {/* Cada carácter vive en su propio <span> para colorearlo según estado.
 
@@ -437,14 +534,24 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
       </div>
 
       {/* ── Indicador de estado del juego ──────────────────────────────────── */}
-      {/* Mostramos un mensaje contextual según la fase:
-          - "esperando": invita al usuario a empezar
-          - "jugando": (reservado para métricas en tarea 2.6)
-          - "terminado": muestra el resumen usando las funciones de cálculo */}
       {faseJuego === "esperando" && (
         <p className="mt-3 text-sm text-muted animate-pulse text-center">
           empieza a escribir para iniciar el cronómetro
         </p>
+      )}
+
+      {/* ── Métricas en vivo durante el tipeo ─────────────────────────────
+          Aparecen suavemente cuando el usuario empieza a escribir y muestran
+          WPM y precisión actualizados cada 500ms. Se desvanecen al terminar. */}
+      {faseJuego === "jugando" && metricasEnVivo && (
+        <div className="mt-3 flex items-center justify-center gap-6 text-sm animar-aparicion">
+          <span className="text-acento/70 tabular-nums">
+            {metricasEnVivo.wpm} <span className="text-xs text-opaco">wpm</span>
+          </span>
+          <span className="text-brillante/70 tabular-nums">
+            {metricasEnVivo.precision}% <span className="text-xs text-opaco">precisión</span>
+          </span>
+        </div>
       )}
 
       {/* ── Resultados finales ───────────────────────────────────────────────
@@ -455,32 +562,30 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
           <p className="text-xs text-muted tracking-widest uppercase mb-3">resultados</p>
           <div className="flex items-center justify-center gap-4 sm:gap-8">
             <div className="flex flex-col items-center gap-1">
-              <span className="text-xl sm:text-2xl font-semibold text-acento">
-                {resultadosFinales.wpm}
+              <span className="text-xl sm:text-2xl font-semibold text-acento tabular-nums">
+                <ContadorAnimado valor={resultadosFinales.wpm} />
               </span>
               <span className="text-xs text-opaco">wpm</span>
             </div>
             <div className="w-px h-8 bg-borde" />
             <div className="flex flex-col items-center gap-1">
-              <span className="text-xl sm:text-2xl font-semibold text-brillante">
-                {resultadosFinales.precision}%
+              <span className="text-xl sm:text-2xl font-semibold text-brillante tabular-nums">
+                <ContadorAnimado valor={resultadosFinales.precision} decimales={1} />%
               </span>
               <span className="text-xs text-opaco">precisión</span>
             </div>
             <div className="w-px h-8 bg-borde" />
             <div className="flex flex-col items-center gap-1">
-              <span className="text-xl sm:text-2xl font-semibold text-texto">
-                {resultadosFinales.tiempo}s
+              <span className="text-xl sm:text-2xl font-semibold text-texto tabular-nums">
+                <ContadorAnimado valor={resultadosFinales.tiempo} decimales={1} />s
               </span>
               <span className="text-xs text-opaco">tiempo</span>
             </div>
           </div>
 
-          {/* Botón de reinicio. Al pulsarlo llama a onReintentar, que vive en
-              SelectorTematica y dispara una nueva petición a Ollama con la
-              misma temática, generando un texto diferente. */}
+          {/* Botón de reinicio + hint de atajo Tab */}
           {onReintentar && (
-            <div className="mt-5 flex justify-center">
+            <div className="mt-5 flex flex-col items-center gap-2">
               <button
                 onClick={onReintentar}
                 className="
@@ -492,6 +597,14 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
               >
                 nuevo texto
               </button>
+              {/* Hint de Tab: solo visible en desktop (hidden en móvil).
+                  Aparece con un fade-in retrasado para no competir con los
+                  contadores animados que se muestran primero. */}
+              {!esTactil && (
+                <span className="text-[11px] text-opaco/60 tracking-wide animar-aparicion-lenta">
+                  o presiona <kbd className="px-1.5 py-0.5 rounded-xs border border-borde text-opaco text-[10px]">tab</kbd> para reiniciar
+                </span>
+              )}
             </div>
           )}
         </div>

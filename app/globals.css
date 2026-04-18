@@ -228,6 +228,18 @@ body::before {
   animation: pulsoSuave 2.5s ease-in-out infinite;
 }
 
+/* ── Aparición lenta para hints secundarios ──────────────────────────────
+   Fade-in con retraso para que el hint aparezca DESPUÉS de que los
+   contadores animados terminen (~1s de delay). No compite visualmente. */
+@keyframes aparicionLenta {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animar-aparicion-lenta {
+  opacity: 0;
+  animation: aparicionLenta 0.5s ease 1s forwards;
+}
+
 /* ── Accesibilidad: respetar preferencias de movimiento reducido ──────────
    Algunos usuarios configuran su sistema operativo para reducir animaciones
    (por motivos de accesibilidad, mareo por movimiento, etc.).
@@ -237,7 +249,8 @@ body::before {
   .animar-entrada,
   .animar-entrada-arriba,
   .animar-aparicion,
-  .animar-pulso-suave {
+  .animar-pulso-suave,
+  .animar-aparicion-lenta {
     animation: none;
     opacity: 1;
     transform: none;
