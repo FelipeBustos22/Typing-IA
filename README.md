@@ -128,6 +128,22 @@ types/
 
 ---
 
+## Tests
+
+El proyecto usa [Vitest](https://vitest.dev) con entorno `jsdom` para las pruebas unitarias de la lógica en `lib/` (cálculos de WPM/precisión, construcción de prompts y rate limiting).
+
+```bash
+# Ejecutar todos los tests una vez
+npm test
+
+# Ejecutar en modo watch (re-ejecuta al guardar cambios)
+npm run test:watch
+```
+
+Para una guía detallada sobre qué se prueba, cómo añadir nuevos tests y patrones usados (aislamiento de estado global, mock de `Date.now`, etc.), consulta [`TESTS.md`](TESTS.md).
+
+---
+
 ## Seguridad
 
 El proyecto aplica medidas de endurecimiento en la cadena de dependencias npm para proteger tanto la aplicacion en produccion como la maquina del desarrollador. Los detalles estan documentados en [`SEGURIDAD.md`](SEGURIDAD.md).
