@@ -30,6 +30,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className={geistMono.variable}>
+      {/* interactive-widget=resizes-content hace que el viewport se redimensione
+          suavemente cuando aparece el teclado virtual en móvil, en lugar de
+          empujar el contenido hacia arriba de forma brusca. */}
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
+      </head>
       <body className="antialiased flex flex-col min-h-dvh bg-bg">
         <Navbar />
 

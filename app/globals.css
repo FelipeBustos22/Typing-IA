@@ -183,6 +183,51 @@ body::before {
 .retraso-3 { animation-delay: 300ms; }
 .retraso-4 { animation-delay: 440ms; }
 
+/* ── Input de captura para móvil ──────────────────────────────────────────
+   En desktop se comporta como sr-only (fuera de pantalla).
+   En móvil (pointer: coarse) se posiciona como overlay transparente sobre
+   el área de texto para que el navegador lo reconozca como focusable y
+   muestre el teclado virtual al hacer tap.
+   font-size: 16px evita el auto-zoom de Safari iOS al enfocar inputs. */
+.input-captura-movil {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  caret-color: transparent;
+}
+
+@media (pointer: coarse) {
+  .input-captura-movil {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    clip: auto;
+    margin: 0;
+    z-index: 10;
+    font-size: 16px;
+  }
+}
+
+/* ── Pulso suave para el hint táctil ─────────────────────────────────────
+   Más lento y sutil que animar-pulso: no compite con la interfaz,
+   solo atrae la atención gentilmente hacia el mensaje. */
+@keyframes pulsoSuave {
+  0%, 100% { opacity: 0.6; }
+  50%       { opacity: 1;   }
+}
+.animar-pulso-suave {
+  animation: pulsoSuave 2.5s ease-in-out infinite;
+}
+
 /* ── Accesibilidad: respetar preferencias de movimiento reducido ──────────
    Algunos usuarios configuran su sistema operativo para reducir animaciones
    (por motivos de accesibilidad, mareo por movimiento, etc.).
@@ -191,7 +236,8 @@ body::before {
 @media (prefers-reduced-motion: reduce) {
   .animar-entrada,
   .animar-entrada-arriba,
-  .animar-aparicion {
+  .animar-aparicion,
+  .animar-pulso-suave {
     animation: none;
     opacity: 1;
     transform: none;

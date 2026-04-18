@@ -221,10 +221,54 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
     }
   }, [procesarCaracter])
 
+  // ── Detectar si el dispositivo es táctil ────────────────────────────────
+  // Usamos un estado para que el render pueda mostrar/ocultar el hint táctil.
+  // La detección se hace una sola vez al montar el componente.
+  const [esTactil, setEsTactil] = useState(false)
+
+  useEffect(() => {
+    // "ontouchstart" existe en dispositivos con pantalla táctil.
+    // Comprobamos también coarse pointer (pantallas táctiles sin stylus preciso).
+    const tactil = "ontouchstart" in window
+      || window.matchMedia("(pointer: coarse)").matches
+    setEsTactil(tactil)
+  }, [])
+
   // ── Mantener el foco en el input oculto ───────────────────────────────────
   useEffect(() => {
-    inputRef.current?.focus()
-  }, [textoObjetivo])
+    // En desktop enfocamos automáticamente. En móvil el foco programático
+    // no abre el teclado virtual (requiere gesto del usuario), así que
+    // dejamos que el tap del usuario lo active.
+    if (!esTactil) {
+      inputRef.current?.focus()
+    }
+  }, [textoObjetivo, esTactil])
+
+  // ── Scroll al área de tipeo cuando el teclado virtual se abre ─────────────
+  // Cuando el viewport se redimensiona (teclado virtual aparece/desaparece),
+  // hacemos scroll suave para que el texto activo quede visible.
+  const contenedorRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!esTactil) return
+
+    const vv = window.visualViewport
+    if (!vv) return
+
+    const handleResize = () => {
+      // Si el viewport visual es significativamente menor que el layout,
+      // significa que el teclado virtual está abierto.
+      if (vv.height < window.innerHeight * 0.85) {
+        contenedorRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        })
+      }
+    }
+
+    vv.addEventListener("resize", handleResize)
+    return () => vv.removeEventListener("resize", handleResize)
+  }, [esTactil])
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -239,23 +283,91 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
   // Al derivar la posición desde el estado, el render siempre es predecible.
   const posicionCursor = estadosCaracteres.findIndex(e => e === "pendiente")
 
+  // ── Handler de tap para móvil ────────────────────────────────────────────
+  // En móviles, el foco programático no abre el teclado — se necesita un gesto
+  // del usuario. Este handler se dispara con el tap y fuerza el foco + teclado.
+  const handleTap = useCallback(() => {
+    const input = inputRef.current
+    if (!input) return
+    input.focus()
+    // readOnly trick: algunos navegadores móviles ignoran focus() en inputs
+    // que ya tenían foco. Quitamos y ponemos readOnly para forzar el teclado.
+    input.readOnly = true
+    setTimeout(() => {
+      input.readOnly = false
+      input.focus()
+    }, 50)
+  }, [])
+
+  // Estado para controlar si el hint táctil ya fue descartado.
+  // Se oculta con animación de salida al tocar la pantalla.
+  const [hintVisible, setHintVisible] = useState(true)
+
+  const handleTapConHint = useCallback(() => {
+    if (hintVisible) setHintVisible(false)
+    handleTap()
+  }, [handleTap, hintVisible])
+
   return (
     <div
-      onClick={() => inputRef.current?.focus()}
+      ref={contenedorRef}
+      onClick={handleTapConHint}
       className="outline-none w-full"
     >
-      {/* Input oculto que captura la entrada del teclado.
-          Usamos un input real en lugar de keydown en window porque el evento
-          "input" siempre entrega el carácter compuesto final (dead keys, IME). */}
+      {/* Input que captura la entrada del teclado.
+          En desktop es invisible (sr-only). En móvil se posiciona como un
+          overlay transparente sobre el área de texto para que el navegador
+          lo reconozca como focusable y abra el teclado virtual.
+          Los atributos autoCapitalize/autoCorrect/spellCheck desactivan
+          las sugerencias del teclado que interferirían con el tipeo. */}
       <input
         ref={inputRef}
         onInput={handleInput}
         onCompositionStart={handleCompositionStart}
         onCompositionEnd={handleCompositionEnd}
-        className="sr-only"
+        className="input-captura-movil"
         aria-label="Campo de escritura"
-        autoFocus
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+        autoFocus={!esTactil}
+        enterKeyHint="done"
       />
+
+      {/* ── Hint táctil: solo visible en dispositivos táctiles ──────────
+          Invita al usuario a tocar la pantalla para abrir el teclado.
+          Desaparece con una animación suave al primer tap. */}
+      {esTactil && faseJuego === "esperando" && (
+        <div
+          className={`
+            flex items-center justify-center gap-2 mb-4
+            text-sm text-acento/80 tracking-wide
+            transition-all duration-500 ease-out
+            ${hintVisible
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 -translate-y-2 pointer-events-none"
+            }
+          `}
+        >
+          <svg
+            className="w-4 h-4 animar-pulso-suave"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            {/* Icono de mano tocando — tap gesture */}
+            <path d="M8 13V4.5a1.5 1.5 0 0 1 3 0V12" />
+            <path d="M11 11.5v-2a1.5 1.5 0 0 1 3 0V12" />
+            <path d="M14 10.5a1.5 1.5 0 0 1 3 0V12" />
+            <path d="M17 11.5a1.5 1.5 0 0 1 3 0V16a6 6 0 0 1-6 6h-2 .208a6 6 0 0 1-5.012-2.7L7 19c-.312-.479-1.407-2.388-3.286-5.728a1.5 1.5 0 0 1 .536-2.022 1.867 1.867 0 0 1 2.28.28L8 13" />
+          </svg>
+          <span>toca para abrir el teclado</span>
+        </div>
+      )}
+
       {/* ── Área del texto ──────────────────────────────────────────────── */}
       <div
         className="
