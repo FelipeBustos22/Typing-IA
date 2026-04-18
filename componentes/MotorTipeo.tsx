@@ -1,392 +1,39 @@
 "use client"
 
-// ¿Por qué "use client"?
-// Este componente captura eventos de teclado (onKeyDown), usa useEffect para
-// registrar listeners del navegador, y usa useState/useRef para manejar estado.
-// Todo eso son capacidades del navegador, no del servidor.
+// ── MotorTipeo ───────────────────────────────────────────────────────────────
+// Componente de presentación del motor de tipeo.
+// Toda la lógica (máquina de estados, input, métricas) vive en useMotorTipeo.
+// Este archivo solo se encarga del render (JSX).
 
-import { useState, useRef, useEffect, useCallback } from "react"
-import { calcularWpm, calcularPrecision } from "@/lib/calculos"
-
-// ─── Tipos locales ─────────────────────────────────────────────────────────────
-// Cada carácter del texto puede estar en uno de estos tres estados visuales.
-// Este tipo no va en types/index.ts porque solo lo usa este componente.
-
-type EstadoCaracter = "pendiente" | "correcto" | "error"
-
-// ── Fase del juego (máquina de estados) ────────────────────────────────────────
-// En lugar de usar múltiples booleanos (estaJugando, haTerminado), un único string
-// con tres valores hace el código más predecible. El componente solo puede estar
-// en UNA de estas fases a la vez — nunca "jugando" y "terminado" simultáneamente.
-//
-// Flujo:  esperando ──(primera tecla)──▶ jugando ──(último carácter)──▶ terminado
-
-type FaseJuego = "esperando" | "jugando" | "terminado"
-
-// ── Resultados finales ───────────────────────────────────────────────────────
-// Guardamos los resultados calculados cuando el juego termina.
-// Esta interfaz es local porque solo la usa este componente.
-interface IResultadosFinales {
-  wpm: number        // palabras por minuto
-  precision: number  // porcentaje de acierto
-  tiempo: number     // segundos totales
-}
+import ContadorAnimado from "@/componentes/ContadorAnimado"
+import { useMotorTipeo } from "@/hooks/useMotorTipeo"
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface IMotorTipeoProps {
-  textoObjetivo: string       // el texto que el usuario debe mecanografiar
-  onIniciar?: () => void      // se llama cuando el usuario escribe la primera letra
-  onReintentar?: () => void   // se llama cuando el usuario pulsa "nuevo texto"
-}
-
-// ─── Contador animado ─────────────────────────────────────────────────────────
-// Interpola un número desde 0 hasta el valor objetivo en ~800ms usando
-// requestAnimationFrame. El resultado es un conteo suave tipo "odómetro".
-// decimales controla cuántos decimales mostrar (0 para enteros, 1 para %).
-
-function ContadorAnimado({ valor, decimales = 0 }: { valor: number; decimales?: number }) {
-  const [mostrado, setMostrado] = useState(0)
-
-  useEffect(() => {
-    const duracion = 800
-    const inicio = performance.now()
-
-    let frame: number
-    const animar = (ahora: number) => {
-      const progreso = Math.min((ahora - inicio) / duracion, 1)
-      // ease-out cúbico: desacelera naturalmente al llegar al valor final
-      const curva = 1 - Math.pow(1 - progreso, 3)
-      setMostrado(curva * valor)
-
-      if (progreso < 1) {
-        frame = requestAnimationFrame(animar)
-      }
-    }
-
-    frame = requestAnimationFrame(animar)
-    return () => cancelAnimationFrame(frame)
-  }, [valor])
-
-  return <>{decimales > 0 ? mostrado.toFixed(decimales) : Math.round(mostrado)}</>
+  textoObjetivo: string
+  onIniciar?: () => void
+  onReintentar?: () => void
 }
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
 export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: IMotorTipeoProps) {
-
-  // ── useState: estados visuales de cada carácter ────────────────────────────
-  // Este array tiene una entrada por cada carácter del texto.
-  // Ejemplo para "hola": ["pendiente", "pendiente", "pendiente", "pendiente"]
-  //
-  // Está en useState porque cuando cambia (el usuario escribe una letra),
-  // React necesita redibujar el componente para mostrar el nuevo color.
-  //
-  // La función dentro de useState(() => ...) se llama "inicializador lazy":
-  // se ejecuta solo una vez al montar el componente, no en cada re-render.
-  // Es más eficiente que Array(n).fill(...) fuera del useState.
-  const [estadosCaracteres, setEstadosCaracteres] = useState<EstadoCaracter[]>(
-    () => Array(textoObjetivo.length).fill("pendiente")
-  )
-
-  // ── useState: fase actual del juego ────────────────────────────────────────
-  // Este es el estado de la "máquina de estados" del juego.
-  // Empieza en "esperando" (el texto está visible pero el usuario aún no escribe).
-  //
-  // ¿Por qué useState y no useRef?
-  // Porque el cambio de fase SÍ debe redibujar la UI:
-  // - "esperando" → muestra un indicador de "empieza a escribir"
-  // - "jugando"   → muestra las métricas en tiempo real
-  // - "terminado" → muestra los resultados finales
-  const [faseJuego, setFaseJuego] = useState<FaseJuego>("esperando")
-
-  // ── useState: resultados finales ──────────────────────────────────────────
-  // Cuando el juego termina, calculamos WPM, precisión y tiempo dentro del
-  // event handler (donde sí podemos leer refs) y guardamos los resultados
-  // en este estado. El render lee de aquí, nunca directamente de los refs.
-  //
-  // ¿Por qué no leer los refs en el render?
-  // React prohíbe leer ref.current durante el render (el JSX) porque los refs
-  // son "opacos" para el sistema de reactividad: React no sabe cuándo cambian
-  // y no puede garantizar que el componente se redibuje correctamente.
-  // La solución es calcular los valores en el handler y guardarlos en estado.
-  const [resultadosFinales, setResultadosFinales] = useState<IResultadosFinales | null>(null)
-
-  // ── useState: métricas en vivo durante el tipeo ───────────────────────────
-  // Se actualizan cada segundo mientras el usuario escribe (fase "jugando").
-  // Muestran WPM y precisión en tiempo real para que el usuario tenga feedback
-  // inmediato de su rendimiento sin esperar a terminar el texto.
-  const [metricasEnVivo, setMetricasEnVivo] = useState<{ wpm: number; precision: number } | null>(null)
-
-  // ── useRef: posición actual del cursor ────────────────────────────────────
-  // Guardamos el índice del carácter que el usuario debe escribir a continuación.
-  //
-  // ¿Por qué useRef y no useState?
-  // Porque este valor solo lo necesitamos para la lógica dentro del event handler,
-  // no directamente en el render. El render calcula la posición del cursor
-  // derivándola del array de estados (primera posición "pendiente").
-  // Separar ambas responsabilidades evita el error de React que prohíbe
-  // leer ref.current durante el render.
-  const indicadorActual = useRef<number>(0)
-
-  // ── useRef: timestamps del cronómetro ─────────────────────────────────────
-  // Guardamos el instante en que el usuario empieza a escribir y en que termina.
-  //
-  // ¿Por qué useRef y no useState?
-  // Porque guardar un timestamp no necesita redibujar nada inmediatamente.
-  // Solo necesitamos estos valores para hacer cálculos (WPM, tiempo total)
-  // en momentos puntuales (cada tecla o al terminar).
-  //
-  // El tipo es `number | null` porque al inicio no tenemos valor todavía.
-  // null significa "el cronómetro aún no ha arrancado / no ha parado".
-  const tiempoInicio = useRef<number | null>(null)
-  const tiempoFin = useRef<number | null>(null)
-
-  // ── useRef: callbacks de fase ──────────────────────────────────────────────
-  // Las funciones onIniciar y onReintentar vienen de SelectorTematica como props.
-  // Si las ponemos directamente en el array de dependencias del useCallback,
-  // el handler se recrearía en cada render de SelectorTematica (porque las
-  // funciones inline se recrean en cada render del padre).
-  //
-  // Guardamos los callbacks en refs y mantenemos el array de dependencias limpio.
-  // El patrón es: el ref siempre apunta a la última versión de la función,
-  // pero su identidad (la referencia al objeto ref en sí) nunca cambia.
-  const onIniciarRef = useRef(onIniciar)
-  useEffect(() => { onIniciarRef.current = onIniciar }, [onIniciar])
-
-  // ── useCallback: handler del teclado ──────────────────────────────────────
-  // useCallback memoriza esta función entre renders.
-  //
-  // ¿Por qué es necesario memorizar la función?
-  // Porque la usamos como dependencia en el useEffect de abajo. Si la función
-  // se recreara en cada render, el useEffect detectaría un "cambio" en cada
-  // render y re-registraría el listener constantemente.
-  // Con useCallback, la función solo se recrea cuando cambia textoObjetivo
-  // (ej: el usuario seleccionó una nueva temática).
-  // ── useRef: contador de errores ────────────────────────────────────────────
-  // Contamos las pulsaciones incorrectas para calcular la precisión al final.
-  //
-  // Va en useRef porque es un contador interno que solo se lee al hacer cálculos,
-  // no necesita provocar un re-render cada vez que el usuario se equivoca.
-  const contadorErrores = useRef<number>(0)
-
-  // ── Ref para el input oculto que captura la entrada del teclado ────────────
-  // Usamos un <input> oculto en lugar de window.addEventListener("keydown")
-  // porque el evento "input" siempre entrega el carácter compuesto final
-  // (ej: dead key + a = "á"), mientras que "keydown" en Linux puede entregar
-  // solo el carácter base sin el acento.
-  const inputRef = useRef<HTMLInputElement>(null)
-  const composingRef = useRef(false)
-
-  // ── Lógica central: procesar un carácter ingresado ────────────────────────
-  const procesarCaracter = useCallback((caracter: string) => {
-    const indice = indicadorActual.current
-
-    if (indice >= textoObjetivo.length) return
-
-    // ── Transición: esperando → jugando ─────────────────────────────────────
-    if (tiempoInicio.current === null) {
-      tiempoInicio.current = Date.now()
-      setFaseJuego("jugando")
-      onIniciarRef.current?.()
-    }
-
-    const esperado = textoObjetivo[indice]
-    const esCorrecta = caracter === esperado
-
-    if (!esCorrecta) {
-      contadorErrores.current += 1
-    }
-
-    setEstadosCaracteres(prev => {
-      const nuevos = [...prev]
-      nuevos[indice] = esCorrecta ? "correcto" : "error"
-      return nuevos
-    })
-
-    indicadorActual.current = indice + 1
-
-    // ── Transición: jugando → terminado ──────────────────────────────────────
-    if (indice + 1 >= textoObjetivo.length) {
-      tiempoFin.current = Date.now()
-      const segundos = (tiempoFin.current - tiempoInicio.current!) / 1000
-
-      setResultadosFinales({
-        wpm: calcularWpm(textoObjetivo.length, segundos),
-        precision: calcularPrecision(textoObjetivo.length, contadorErrores.current),
-        tiempo: Math.round(segundos * 10) / 10
-      })
-      setFaseJuego("terminado")
-    }
-  }, [textoObjetivo])
-
-  // ── Handler del evento "input" en el input oculto ─────────────────────────
-  // El evento "input" se dispara después de que el navegador compone el
-  // carácter final (dead keys, IME, etc.), garantizando que recibimos "á"
-  // en lugar de "Dead" + "a" por separado.
-  const handleInput = useCallback(() => {
-    if (composingRef.current) return
-    const input = inputRef.current
-    if (!input || !input.value) return
-
-    const valor = input.value
-    input.value = ""
-
-    for (const c of valor) {
-      procesarCaracter(c)
-    }
-  }, [procesarCaracter])
-
-  // ── Composition events: para IME y dead keys en ciertos entornos ──────────
-  // En algunos sistemas Linux, las dead keys disparan compositionStart/End.
-  // Ignoramos los eventos "input" intermedios durante la composición y
-  // procesamos el resultado final en compositionEnd.
-  const handleCompositionStart = useCallback(() => {
-    composingRef.current = true
-  }, [])
-
-  const handleCompositionEnd = useCallback(() => {
-    composingRef.current = false
-    const input = inputRef.current
-    if (!input || !input.value) return
-
-    const valor = input.value
-    input.value = ""
-
-    for (const c of valor) {
-      procesarCaracter(c)
-    }
-  }, [procesarCaracter])
-
-  // ── Métricas en vivo: actualizar WPM y precisión cada segundo ───────────
-  // Solo corre durante la fase "jugando". El intervalo lee de los refs
-  // (tiempoInicio, indicadorActual, contadorErrores) que siempre están frescos.
-  useEffect(() => {
-    if (faseJuego !== "jugando") {
-      setMetricasEnVivo(null)
-      return
-    }
-
-    const intervalo = setInterval(() => {
-      if (!tiempoInicio.current) return
-      const segundos = (Date.now() - tiempoInicio.current) / 1000
-      if (segundos <= 0) return
-
-      const caracteresEscritos = indicadorActual.current
-      setMetricasEnVivo({
-        wpm: calcularWpm(caracteresEscritos, segundos),
-        precision: calcularPrecision(caracteresEscritos, contadorErrores.current),
-      })
-    }, 500)
-
-    return () => clearInterval(intervalo)
-  }, [faseJuego])
-
-  // ── Tab para reiniciar: atajo de teclado estándar ─────────────────────────
-  // En todas las apps de mecanografía (Monkeytype, TypeRacer), Tab reinicia
-  // la prueba. Escuchamos keydown a nivel de window porque durante "terminado"
-  // el input puede no tener foco.
-  const onReintentarRef = useRef(onReintentar)
-  useEffect(() => { onReintentarRef.current = onReintentar }, [onReintentar])
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Tab" && faseJuego === "terminado" && onReintentarRef.current) {
-        e.preventDefault()
-        onReintentarRef.current()
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [faseJuego])
-
-  // ── Detectar si el dispositivo es táctil ────────────────────────────────
-  // Usamos un estado para que el render pueda mostrar/ocultar el hint táctil.
-  // La detección se hace una sola vez al montar el componente.
-  const [esTactil, setEsTactil] = useState(false)
-
-  useEffect(() => {
-    // "ontouchstart" existe en dispositivos con pantalla táctil.
-    // Comprobamos también coarse pointer (pantallas táctiles sin stylus preciso).
-    const tactil = "ontouchstart" in window
-      || window.matchMedia("(pointer: coarse)").matches
-    setEsTactil(tactil)
-  }, [])
-
-  // ── Mantener el foco en el input oculto ───────────────────────────────────
-  useEffect(() => {
-    // En desktop enfocamos automáticamente. En móvil el foco programático
-    // no abre el teclado virtual (requiere gesto del usuario), así que
-    // dejamos que el tap del usuario lo active.
-    if (!esTactil) {
-      inputRef.current?.focus()
-    }
-  }, [textoObjetivo, esTactil])
-
-  // ── Scroll al área de tipeo cuando el teclado virtual se abre ─────────────
-  // Cuando el viewport se redimensiona (teclado virtual aparece/desaparece),
-  // hacemos scroll suave para que el texto activo quede visible.
-  const contenedorRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!esTactil) return
-
-    const vv = window.visualViewport
-    if (!vv) return
-
-    const handleResize = () => {
-      // Si el viewport visual es significativamente menor que el layout,
-      // significa que el teclado virtual está abierto.
-      if (vv.height < window.innerHeight * 0.85) {
-        contenedorRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        })
-      }
-    }
-
-    vv.addEventListener("resize", handleResize)
-    return () => vv.removeEventListener("resize", handleResize)
-  }, [esTactil])
-
-  // ── Render ─────────────────────────────────────────────────────────────────
-
-  // Derivamos la posición del cursor desde el array de estados:
-  // el cursor está en el primer carácter que todavía está "pendiente".
-  // findIndex devuelve -1 si no encuentra ninguno (texto completado).
-  //
-  // ¿Por qué no usar indicadorActual.current aquí?
-  // React prohíbe leer refs durante el render porque son valores "opacos" para
-  // el sistema de reactividad: React no sabe cuándo cambian y no puede garantizar
-  // que el componente se redibuje correctamente si los lees en el JSX.
-  // Al derivar la posición desde el estado, el render siempre es predecible.
-  const posicionCursor = estadosCaracteres.findIndex(e => e === "pendiente")
-
-  // ── Handler de tap para móvil ────────────────────────────────────────────
-  // En móviles, el foco programático no abre el teclado — se necesita un gesto
-  // del usuario. Este handler se dispara con el tap y fuerza el foco + teclado.
-  const handleTap = useCallback(() => {
-    const input = inputRef.current
-    if (!input) return
-    input.focus()
-    // readOnly trick: algunos navegadores móviles ignoran focus() en inputs
-    // que ya tenían foco. Quitamos y ponemos readOnly para forzar el teclado.
-    input.readOnly = true
-    setTimeout(() => {
-      input.readOnly = false
-      input.focus()
-    }, 50)
-  }, [])
-
-  // Estado para controlar si el hint táctil ya fue descartado.
-  // Se oculta con animación de salida al tocar la pantalla.
-  const [hintVisible, setHintVisible] = useState(true)
-
-  const handleTapConHint = useCallback(() => {
-    if (hintVisible) setHintVisible(false)
-    handleTap()
-  }, [handleTap, hintVisible])
+  const {
+    estadosCaracteres,
+    faseJuego,
+    resultadosFinales,
+    metricasEnVivo,
+    posicionCursor,
+    esTactil,
+    hintVisible,
+    inputRef,
+    contenedorRef,
+    handleInput,
+    handleCompositionStart,
+    handleCompositionEnd,
+    handleTapConHint,
+  } = useMotorTipeo({ textoObjetivo, onIniciar, onReintentar })
 
   return (
     <div
@@ -397,9 +44,7 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
       {/* Input que captura la entrada del teclado.
           En desktop es invisible (sr-only). En móvil se posiciona como un
           overlay transparente sobre el área de texto para que el navegador
-          lo reconozca como focusable y abra el teclado virtual.
-          Los atributos autoCapitalize/autoCorrect/spellCheck desactivan
-          las sugerencias del teclado que interferirían con el tipeo. */}
+          lo reconozca como focusable y abra el teclado virtual. */}
       <input
         ref={inputRef}
         onInput={handleInput}
@@ -414,9 +59,7 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
         enterKeyHint="done"
       />
 
-      {/* ── Hint táctil: solo visible en dispositivos táctiles ──────────
-          Invita al usuario a tocar la pantalla para abrir el teclado.
-          Desaparece con una animación suave al primer tap. */}
+      {/* ── Hint táctil: solo visible en dispositivos táctiles ──────────── */}
       {esTactil && faseJuego === "esperando" && (
         <div
           className={`
@@ -438,7 +81,6 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
             strokeLinecap="round"
             strokeLinejoin="round"
           >
-            {/* Icono de mano tocando — tap gesture */}
             <path d="M8 13V4.5a1.5 1.5 0 0 1 3 0V12" />
             <path d="M11 11.5v-2a1.5 1.5 0 0 1 3 0V12" />
             <path d="M14 10.5a1.5 1.5 0 0 1 3 0V12" />
@@ -457,14 +99,10 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
           sombra-card
         "
       >
-        {/* Línea decorativa izquierda — brilla suavemente con el acento ámbar */}
+        {/* Línea decorativa izquierda */}
         <div className="absolute left-0 top-6 bottom-6 w-px bg-acento opacity-30 rounded-full" />
 
-        {/* ── Barra de progreso ─────────────────────────────────────────
-            Una línea ámbar muy sutil en la base de la card que crece
-            proporcionalmente al avance del usuario. Usa el mismo color
-            del acento con baja opacidad para no competir con el texto.
-            La transición suaviza el crecimiento carácter a carácter. */}
+        {/* Barra de progreso */}
         <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-borde/30 overflow-hidden rounded-b-sm">
           <div
             className="h-full bg-acento/50 transition-all duration-150 ease-out"
@@ -477,21 +115,8 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
           />
         </div>
 
-        {/* ── Caracteres del texto ─────────────────────────────────────── */}
-        {/* Cada carácter vive en su propio <span> para colorearlo según estado.
-
-            break-words (overflow-wrap: break-word) respeta los límites de
-            las palabras: solo divide una palabra si no cabe entera en la línea.
-            Esto evita cortes como "bu-enas" en medio de una palabra.
-
-            Usamos el espacio normal " " en vez de \u00A0 (non-breaking space)
-            porque \u00A0 no actúa como punto de salto de línea — CSS lo trata
-            como parte de la misma "palabra", impidiendo que el texto envuelva
-            correctamente. Con espacios normales y break-words, el texto se
-            parte solo entre palabras, igual que en cualquier párrafo. */}
-        <p
-          className="text-base leading-loose wrap-break-word"
-        >
+        {/* Caracteres del texto */}
+        <p className="text-base leading-loose wrap-break-word">
           {textoObjetivo.split("").map((caracter, indice) => {
             const estado = estadosCaracteres[indice]
             const esCursor = indice === posicionCursor
@@ -500,13 +125,10 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
               <span
                 key={indice}
                 className={[
-                  // Transición suave al cambiar de color pendiente → correcto/error
                   "transition-colors duration-100",
-                  // Color según el estado del carácter
                   estado === "correcto" && "text-brillante",
                   estado === "error"    && "text-error bg-error/10 rounded-xs",
                   estado === "pendiente" && !esCursor && "text-opaco",
-                  // Cursor: texto brillante, subrayado ámbar parpadeante
                   esCursor && "text-brillante underline decoration-acento decoration-2 underline-offset-4 cursor-parpadeo",
                 ].filter(Boolean).join(" ")}
               >
@@ -533,16 +155,13 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
         </span>
       </div>
 
-      {/* ── Indicador de estado del juego ──────────────────────────────────── */}
+      {/* ── Indicadores de fase ────────────────────────────────────────────── */}
       {faseJuego === "esperando" && (
         <p className="mt-3 text-sm text-muted animate-pulse text-center">
           empieza a escribir para iniciar el cronómetro
         </p>
       )}
 
-      {/* ── Métricas en vivo durante el tipeo ─────────────────────────────
-          Aparecen suavemente cuando el usuario empieza a escribir y muestran
-          WPM y precisión actualizados cada 500ms. Se desvanecen al terminar. */}
       {faseJuego === "jugando" && metricasEnVivo && (
         <div className="mt-3 flex items-center justify-center gap-6 text-sm animar-aparicion">
           <span className="text-acento/70 tabular-nums">
@@ -554,9 +173,7 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
         </div>
       )}
 
-      {/* ── Resultados finales ───────────────────────────────────────────────
-          Leemos de resultadosFinales (useState), NO de los refs.
-          React puede renderizar esto de forma segura y predecible. */}
+      {/* ── Resultados finales ─────────────────────────────────────────────── */}
       {faseJuego === "terminado" && resultadosFinales && (
         <div className="mt-4 w-full rounded-sm border border-borde bg-bg-elevated px-4 sm:px-6 py-5 animar-aparicion sombra-card">
           <p className="text-xs text-muted tracking-widest uppercase mb-3">resultados</p>
@@ -583,7 +200,6 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
             </div>
           </div>
 
-          {/* Botón de reinicio + hint de atajo Tab */}
           {onReintentar && (
             <div className="mt-5 flex flex-col items-center gap-2">
               <button
@@ -597,9 +213,6 @@ export default function MotorTipeo({ textoObjetivo, onIniciar, onReintentar }: I
               >
                 nuevo texto
               </button>
-              {/* Hint de Tab: solo visible en desktop (hidden en móvil).
-                  Aparece con un fade-in retrasado para no competir con los
-                  contadores animados que se muestran primero. */}
               {!esTactil && (
                 <span className="text-[11px] text-opaco/60 tracking-wide animar-aparicion-lenta">
                   o presiona <kbd className="px-1.5 py-0.5 rounded-xs border border-borde text-opaco text-[10px]">tab</kbd> para reiniciar

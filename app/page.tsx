@@ -4,17 +4,7 @@
 // Toda la interactividad ocurre dentro de SelectorTematica (Client Component).
 
 import SelectorTematica from "@/componentes/SelectorTematica"
-
-// Las temáticas son datos estáticos: viven aquí en el Server Component.
-// Cuando en el futuro se lean de una base de datos, esta será la única línea que cambie.
-// El componente hijo no sabe ni le importa de dónde vienen: solo las muestra.
-const TEMATICAS = [
-  "programación",
-  "historia",
-  "ciencia",
-  "filosofía",
-  "literatura",
-]
+import { TEMATICAS } from "@/lib/config"
 
 export default function Home() {
   return (
@@ -76,7 +66,7 @@ export default function Home() {
         estado de carga y el texto generado. Le pasamos las temáticas como prop.
         Este Server Component no sabe qué pasa dentro de él: simplemente lo monta.
       */}
-      <SelectorTematica tematicas={TEMATICAS} />
+      <SelectorTematica tematicas={[...TEMATICAS]} />
     </div>
   )
 }

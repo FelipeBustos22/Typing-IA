@@ -8,6 +8,7 @@
 import { useState } from "react"
 import type { ITextoGenerado } from "@/types"
 import MotorTipeo from "@/componentes/MotorTipeo"
+import { generarTextoAPI } from "@/lib/api"
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 interface ISelectorTematicaProps {
@@ -64,24 +65,9 @@ export default function SelectorTematica({ tematicas }: ISelectorTematicaProps) 
     setResultado(null)   // limpiamos el texto anterior mientras llega el nuevo
 
     try {
-      // Llamamos a NUESTRA API en Next.js, no a Ollama directamente.
-      // route.ts en el servidor recibirá esto y se encargará de hablar con Ollama.
-      const respuesta = await fetch("/api/texto-generado", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tematica }),
-      })
-
-      // Si el servidor respondió con error (4xx, 5xx), lo manejamos.
-      // fetch no lanza excepción por errores HTTP, hay que revisarlo manualmente.
-      if (!respuesta.ok) {
-        const datos = await respuesta.json()
-        throw new Error(datos.error ?? `Error ${respuesta.status}`)
-      }
-
-      // Parseamos el JSON de respuesta y lo guardamos en el estado.
-      // Esto dispara un re-render: React redibuja el componente con el texto nuevo.
-      const datos: ITextoGenerado = await respuesta.json()
+      // Llamamos al cliente API tipado que encapsula el fetch al backend.
+      // El componente no sabe nada sobre URLs, headers ni parseo de respuesta.
+      const datos = await generarTextoAPI(tematica)
       setResultado(datos)
 
     } catch (err) {
