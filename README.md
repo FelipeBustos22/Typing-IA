@@ -128,6 +128,19 @@ types/
 
 ---
 
+## Seguridad
+
+El proyecto aplica medidas de endurecimiento en la cadena de dependencias npm para proteger tanto la aplicacion en produccion como la maquina del desarrollador. Los detalles estan documentados en [`SEGURIDAD.md`](SEGURIDAD.md).
+
+Puntos clave:
+- Todas las dependencias estan fijadas a versiones exactas
+- Los scripts de instalacion de paquetes terceros estan bloqueados por defecto (`.npmrc`)
+- Las vulnerabilidades conocidas se parchean de forma controlada
+
+Si encuentras un problema de seguridad, abre un issue o contacta al mantenedor directamente.
+
+---
+
 ## Licencia
 
 [MIT](LICENSE)

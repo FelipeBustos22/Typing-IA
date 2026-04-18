@@ -47,3 +47,10 @@ next-env.d.ts
 .agent
 .agents
 skills-lock.json
+
+# reportes internos de auditoria
+SECURITY-AUDIT.md
+
+# herramientas de desarrollo locales
+.claude/
+claude.md
